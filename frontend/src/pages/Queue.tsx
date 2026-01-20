@@ -159,7 +159,7 @@ export default function Queue() {
       <div className="header">
         <div className="brand">
           <div className="chip">HITL Queue</div>
-          <h1>Karma Risk Triage</h1>
+          <h1>Risk Triage</h1>
         </div>
         <div className="split" style={{ alignItems: "center" }}>
           <Link className="button secondary" to="/stats">
