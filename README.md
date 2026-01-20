@@ -1,4 +1,4 @@
-# Karma HITL UI MVP
+# HITL UI MVP
 
 ## Run (backend + frontend)
 
