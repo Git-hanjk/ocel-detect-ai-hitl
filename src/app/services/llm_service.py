@@ -25,9 +25,9 @@ SCHEMA_PATHS = {
     "verify": "schemas/llm_verify.schema.json",
     "explain": "schemas/llm_explain.schema.json",
 }
-PROMPT_VERSION = "v2"
-VERIFY_SCHEMA_VERSION = "verify.v2"
-EXPLAIN_SCHEMA_VERSION = "explain.v2"
+PROMPT_VERSION = "v2.1"
+VERIFY_SCHEMA_VERSION = "verify.v2.1"
+EXPLAIN_SCHEMA_VERSION = "explain.v2.1"
 
 logger = logging.getLogger(__name__)
 
