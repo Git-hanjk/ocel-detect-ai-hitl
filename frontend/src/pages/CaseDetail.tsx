@@ -298,6 +298,10 @@ export default function CaseDetail() {
             <div><strong>Anchor:</strong> {candidate.anchor_object_id}</div>
             <div><strong>Status:</strong> {candidate.status}</div>
             <div><strong>Scores:</strong> base {candidate.base_conf?.toFixed(2)} | final {candidate.final_conf?.toFixed(2)}</div>
+            <div>
+              <strong>Severity:</strong> {candidate.severity?.toFixed(2) ?? "-"} |{" "}
+              <strong>Priority:</strong> {candidate.priority_score?.toFixed(2) ?? "-"}
+            </div>
             <div className="small">Created: {candidate.created_at} ({formatLocal(candidate.created_at)})</div>
             <div className="small">Updated: {candidate.updated_at} ({formatLocal(candidate.updated_at)})</div>
             <div><strong>Reason:</strong> {(features as any)?.maverick_reason || "-"}</div>

@@ -35,6 +35,10 @@ def init_db(engine) -> None:
             conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_candidates_run_id ON candidates (run_id)")
             )
+        if "severity" not in cols:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN severity REAL"))
+        if "priority_score" not in cols:
+            conn.execute(text("ALTER TABLE candidates ADD COLUMN priority_score REAL"))
         rows = conn.execute(text("PRAGMA table_info(llm_results)")).fetchall()
         llm_cols = {row[1] for row in rows}
         if "provider" not in llm_cols:

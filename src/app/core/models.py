@@ -21,6 +21,8 @@ class Candidate(Base):
     anchor_object_type: Mapped[str] = mapped_column(String, index=True)
     base_conf: Mapped[float] = mapped_column(Float, default=0.0)
     final_conf: Mapped[float] = mapped_column(Float, default=0.0)
+    severity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    priority_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String, default="open", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

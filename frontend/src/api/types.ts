@@ -6,6 +6,8 @@ export type Candidate = {
   anchor_object_type: string;
   base_conf: number;
   final_conf: number;
+  severity?: number | null;
+  priority_score?: number | null;
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
@@ -77,6 +79,25 @@ export type StatsResponse = {
     confirm: number;
     reject: number;
     accuracy: number | null;
+  }>;
+  severity_buckets: {
+    low: number;
+    medium: number;
+    high: number;
+    unknown: number;
+  };
+  label_averages: Array<{
+    label: string;
+    avg_severity: number | null;
+    avg_priority_score: number | null;
+  }>;
+  top_priority: Array<{
+    candidate_id: string;
+    type: string;
+    priority_score: number | null;
+    severity: number | null;
+    final_conf: number | null;
+    status: string;
   }>;
 };
 

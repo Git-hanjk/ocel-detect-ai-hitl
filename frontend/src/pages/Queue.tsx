@@ -24,9 +24,10 @@ export default function Queue() {
   const [toast, setToast] = useState<string | null>(null);
   const [type, setType] = useState<string>("");
   const [status, setStatus] = useState<string>("open");
-  const [sort, setSort] = useState<string>("newest");
+  const [sort, setSort] = useState<string>("priority");
   const [search, setSearch] = useState<string>("");
   const [hasLlmOnly, setHasLlmOnly] = useState(false);
+  const [highSeverityOnly, setHighSeverityOnly] = useState(false);
   const [offset, setOffset] = useState(0);
   const [limit] = useState(50);
   const [displayCount, setDisplayCount] = useState<number | null>(null);
@@ -44,7 +45,17 @@ export default function Queue() {
         params.set("offset", String(offset));
         if (type) params.set("type", type);
         if (status) params.set("status", status);
-        params.set("sort", "final_conf_desc");
+        const sortParam =
+          sort === "priority"
+            ? "priority"
+            : sort === "severity"
+              ? "severity"
+              : sort === "confidence"
+                ? "confidence"
+                : sort === "newest"
+                  ? "updated_at_desc"
+                  : "final_conf_desc";
+        params.set("sort", sortParam);
         const data = await apiFetch<ListResponse>(`/api/candidates?${params.toString()}`);
         if (!active) return;
         setItems(data.items || []);
@@ -63,7 +74,7 @@ export default function Queue() {
     return () => {
       active = false;
     };
-  }, [type, status, offset, limit, refreshToken]);
+  }, [type, status, offset, limit, refreshToken, sort]);
 
   const filtered = useMemo(() => {
     let next = [...items];
@@ -73,10 +84,33 @@ export default function Queue() {
     if (hasLlmOnly) {
       next = next.filter((item) => Boolean(item.llm_preview?.verify_created_at));
     }
+    if (highSeverityOnly) {
+      next = next.filter((item) => (item.severity ?? -1) >= 0.7);
+    }
     if (sort === "newest") {
       next.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-    } else if (sort === "base_conf") {
-      next.sort((a, b) => (b.base_conf || 0) - (a.base_conf || 0));
+    } else if (sort === "confidence") {
+      next.sort((a, b) => (b.final_conf || 0) - (a.final_conf || 0));
+    } else if (sort === "severity") {
+      next.sort((a, b) => {
+        const aScore = a.severity ?? -1;
+        const bScore = b.severity ?? -1;
+        if (bScore !== aScore) return bScore - aScore;
+        if ((b.final_conf || 0) !== (a.final_conf || 0)) {
+          return (b.final_conf || 0) - (a.final_conf || 0);
+        }
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
+    } else if (sort === "priority") {
+      next.sort((a, b) => {
+        const aScore = a.priority_score ?? -1;
+        const bScore = b.priority_score ?? -1;
+        if (bScore !== aScore) return bScore - aScore;
+        if ((b.final_conf || 0) !== (a.final_conf || 0)) {
+          return (b.final_conf || 0) - (a.final_conf || 0);
+        }
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
     } else if (sort === "llm_priority") {
       const rank = (value?: string | null) => {
         if (value === "high") return 0;
@@ -105,11 +139,11 @@ export default function Queue() {
       next.sort((a, b) => (b.final_conf || 0) - (a.final_conf || 0));
     }
     return next;
-  }, [items, search, sort, hasLlmOnly]);
+  }, [items, search, sort, hasLlmOnly, highSeverityOnly]);
 
   useEffect(() => {
     setOffset(0);
-  }, [type, status]);
+  }, [type, status, sort]);
 
   const runLabel = runId || "N/A";
   const isTotalCount =
@@ -189,9 +223,10 @@ export default function Queue() {
             value={sort}
             onChange={(e) => setSort(e.target.value)}
           >
+            <option value="priority">Sort: priority</option>
+            <option value="severity">Sort: severity</option>
+            <option value="confidence">Sort: confidence</option>
             <option value="newest">Sort: newest</option>
-            <option value="score">Sort: final confidence</option>
-            <option value="base_conf">Sort: base confidence</option>
             <option value="llm_priority">Sort: LLM priority</option>
           </select>
           <button
@@ -200,6 +235,13 @@ export default function Queue() {
             onClick={() => setHasLlmOnly((prev) => !prev)}
           >
             {hasLlmOnly ? "Has LLM verify ✓" : "Has LLM verify"}
+          </button>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setHighSeverityOnly((prev) => !prev)}
+          >
+            {highSeverityOnly ? "Severity ≥ 0.7 ✓" : "Severity ≥ 0.7"}
           </button>
           <input
             className="input"
@@ -260,6 +302,10 @@ export default function Queue() {
                   <td>
                     <div className="small">
                       base {candidate.base_conf?.toFixed(2)} | final {candidate.final_conf?.toFixed(2)}
+                    </div>
+                    <div className="small">
+                      sev {candidate.severity?.toFixed(2) ?? "-"} | prio{" "}
+                      {candidate.priority_score?.toFixed(2) ?? "-"}
                     </div>
                   </td>
                   <td>{summaryText(candidate)}</td>

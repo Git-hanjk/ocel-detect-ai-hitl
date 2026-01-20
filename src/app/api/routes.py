@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, asc, case, desc, func, select
 from sqlalchemy.orm import Session, aliased
 
 from src.app.core.db import get_engine, init_db
@@ -55,6 +55,8 @@ def candidate_to_dict(candidate: Candidate) -> Dict[str, Any]:
         "anchor_object_type": candidate.anchor_object_type,
         "base_conf": candidate.base_conf,
         "final_conf": candidate.final_conf,
+        "severity": candidate.severity,
+        "priority_score": candidate.priority_score,
         "status": candidate.status,
         "created_at": _iso(candidate.created_at),
         "updated_at": _iso(candidate.updated_at),
@@ -113,7 +115,7 @@ def list_candidates(
     status: Optional[str] = "open",
     type: Optional[str] = None,
     min_conf: Optional[float] = None,
-    sort: str = "final_conf_desc",
+    sort: str = "priority",
     limit: int = 100,
     offset: int = 0,
     run_id: Optional[str] = None,
@@ -171,10 +173,24 @@ def list_candidates(
         query = query.where(Candidate.final_conf >= min_conf)
     if run_id:
         query = query.where(Candidate.run_id == run_id)
-    if sort == "final_conf_asc":
-        query = query.order_by(Candidate.final_conf.asc())
-    else:
+    if sort in ("priority", "priority_desc"):
+        query = query.order_by(
+            desc(func.coalesce(Candidate.priority_score, -1.0)),
+            desc(Candidate.final_conf),
+            desc(Candidate.updated_at),
+        )
+    elif sort in ("severity", "severity_desc"):
+        query = query.order_by(
+            desc(func.coalesce(Candidate.severity, -1.0)),
+            desc(Candidate.final_conf),
+            desc(Candidate.updated_at),
+        )
+    elif sort in ("confidence", "final_conf_desc"):
         query = query.order_by(desc(Candidate.final_conf))
+    elif sort == "final_conf_asc":
+        query = query.order_by(asc(Candidate.final_conf))
+    else:
+        query = query.order_by(desc(Candidate.updated_at))
     query = query.limit(limit).offset(offset)
     rows = db.execute(query).all()
     items = []
@@ -302,6 +318,9 @@ def get_stats(run_id: Optional[str] = None, db: Session = Depends(get_db)):
             "labels": [],
             "accuracy": {"confirm": 0, "reject": 0, "accuracy": None},
             "accuracy_by_type": [],
+            "severity_buckets": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
+            "label_averages": [],
+            "top_priority": [],
         }
 
     candidate_filter = Candidate.run_id == run_id
@@ -322,6 +341,26 @@ def get_stats(run_id: Optional[str] = None, db: Session = Depends(get_db)):
             .where(candidate_filter)
             .group_by(Candidate.status)
         ).all()
+    )
+    severity_bucket_row = (
+        db.execute(
+            select(
+                func.sum(case((Candidate.severity >= 0.7, 1), else_=0)).label("high"),
+                func.sum(
+                    case(
+                        (
+                            and_(Candidate.severity >= 0.4, Candidate.severity < 0.7),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ).label("medium"),
+                func.sum(case((Candidate.severity < 0.4, 1), else_=0)).label("low"),
+                func.sum(case((Candidate.severity.is_(None), 1), else_=0)).label("unknown"),
+            )
+            .where(candidate_filter)
+        )
+        .one()
     )
 
     latest_label_subq = (
@@ -370,6 +409,49 @@ def get_stats(run_id: Optional[str] = None, db: Session = Depends(get_db)):
             .group_by(Candidate.type, Label.label)
         ).all()
     )
+
+    label_average_rows = (
+        db.execute(
+            select(
+                Label.label,
+                func.avg(Candidate.severity),
+                func.avg(Candidate.priority_score),
+            )
+            .join(
+                latest_label_subq,
+                Candidate.candidate_id == latest_label_subq.c.candidate_id,
+            )
+            .join(
+                Label,
+                and_(
+                    Label.candidate_id == latest_label_subq.c.candidate_id,
+                    Label.created_at == latest_label_subq.c.latest_at,
+                ),
+            )
+            .where(candidate_filter)
+            .group_by(Label.label)
+        ).all()
+    )
+
+    top_priority_rows = (
+        db.execute(
+            select(
+                Candidate.candidate_id,
+                Candidate.type,
+                Candidate.priority_score,
+                Candidate.severity,
+                Candidate.final_conf,
+                Candidate.status,
+            )
+            .where(candidate_filter)
+            .order_by(
+                desc(func.coalesce(Candidate.priority_score, -1.0)),
+                desc(Candidate.final_conf),
+            )
+            .limit(10)
+        )
+        .all()
+    )
     by_type_labels: dict[str, dict[str, int]] = {}
     for ctype, label, count in by_type_label_rows:
         by_type_labels.setdefault(ctype, {})[label] = count
@@ -397,4 +479,25 @@ def get_stats(run_id: Optional[str] = None, db: Session = Depends(get_db)):
         "labels": [{"label": l, "count": c} for l, c in label_rows],
         "accuracy": {"confirm": confirm_count, "reject": reject_count, "accuracy": accuracy},
         "accuracy_by_type": accuracy_by_type,
+        "severity_buckets": {
+            "low": severity_bucket_row.low or 0,
+            "medium": severity_bucket_row.medium or 0,
+            "high": severity_bucket_row.high or 0,
+            "unknown": severity_bucket_row.unknown or 0,
+        },
+        "label_averages": [
+            {"label": label, "avg_severity": avg_sev, "avg_priority_score": avg_pri}
+            for label, avg_sev, avg_pri in label_average_rows
+        ],
+        "top_priority": [
+            {
+                "candidate_id": candidate_id,
+                "type": ctype,
+                "priority_score": priority_score,
+                "severity": severity,
+                "final_conf": final_conf,
+                "status": status,
+            }
+            for candidate_id, ctype, priority_score, severity, final_conf, status in top_priority_rows
+        ],
     }

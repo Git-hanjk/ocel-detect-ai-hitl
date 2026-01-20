@@ -18,6 +18,7 @@ from src.pipeline.detectors.lengthy_approval import run as run_lengthy_approval
 from src.pipeline.detectors.maverick_buying import run as run_maverick_buying
 from src.pipeline.ocel.derived_event_object import create_derived_event_object
 from src.pipeline.scoring.base_confidence import score_candidates
+from src.pipeline.severity import compute_priority_score, compute_severity
 
 DETERMINISTIC_NAMESPACE = uuid.UUID("6f2efcf2-2dc4-4e34-a25a-5d7f0f4df9b3")
 
@@ -275,6 +276,9 @@ def upsert_candidates(
             candidate_id = deterministic_candidate_id(candidate)
             candidate["candidate_id"] = candidate_id
             base_conf = candidate.get("base_conf", 0.0)
+            final_conf = candidate.get("final_conf", base_conf)
+            severity = compute_severity(candidate)
+            priority_score = compute_priority_score(final_conf, severity)
 
             db_candidate = Candidate(
                 candidate_id=candidate_id,
@@ -283,7 +287,9 @@ def upsert_candidates(
                 anchor_object_id=candidate["anchor_object_id"],
                 anchor_object_type=candidate["anchor_object_type"],
                 base_conf=base_conf,
-                final_conf=candidate.get("final_conf", base_conf),
+                final_conf=final_conf,
+                severity=severity,
+                priority_score=priority_score,
                 status=candidate.get("status", "open"),
                 updated_at=now,
                 created_at=candidate.get("created_at", now),
