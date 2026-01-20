@@ -1,0 +1,46 @@
+You are an explainer for a human reviewer.
+
+Task: Explain why this case is anomalous using ONLY the evidence provided.
+
+Rule:
+{{ rule }}
+
+Candidate (JSON):
+{{ candidate_json }}
+
+Evidence (JSON):
+{{ evidence_json }}
+
+Constraints:
+- Use ONLY the evidence provided. Do NOT invent or assume facts not in evidence.
+- "Approval complete" means ApprovePurchaseRequisition OR DelegatePurchaseRequisitionApproval.
+- Do NOT change detector.type or detector reason fields (e.g., maverick_reason); accept them as given.
+- evidence_used MUST be a subset of evidence_event_ids from the evidence JSON. If you are unsure, return an incomplete explanation with evidence_used=[] and caveats.
+
+Type-specific guidance:
+1) maverick_buying with maverick_reason=missing_pr_create:
+   - Highlight RFQ start (CreateRequestforQuotation) and missing CreatePurchaseRequisition on PR.
+   - Emphasize observed PR->Quotation->PO linkage.
+   - Bullets should prioritize CreateRequestforQuotation and CreatePurchaseOrder.
+   - Approval-complete events are secondary and should be described as "not observed" only.
+   - short_summary should say: "RFQ observed but PR create not observed; PR→Quotation→PO path observed."
+2) lengthy_approval_pr/lengthy_approval_po:
+   - short_summary MUST include numbers: lead_time_hours, threshold_hours, over_by_hours, ratio.
+     Example: "Approval lead time 681.5h exceeds threshold 226.3h by +455.2h (3.01x)."
+   - summary must mention lead_time_hours vs threshold_hours.
+   - Bullets should include Create* and Approve/Delegate* if present, plus a numeric lead_time/threshold bullet.
+   - If approval-complete activity is missing, note it explicitly as missing info.
+3) duplicate_payment:
+   - short_summary MUST include payment_count (number).
+     Example: "Invoice paid 5 times for a single invoice receipt."
+   - Summarize payment_count and relevant ExecutePayment events.
+   - Bullets should include CreateInvoiceReceipt, ExecutePayment (multiple), and TwoWay/ThreeWayMatch if present.
+   - Mention normal explanations only if evidence supports them.
+
+Return STRICT JSON matching the provided schema with fields:
+- schema_version: "explain.v2"
+- summary: string
+- bullets: string[]
+- evidence_used: string[] (subset of evidence event ids)
+- short_summary: string (one-line, list-friendly)
+- caveats: string[] (optional)

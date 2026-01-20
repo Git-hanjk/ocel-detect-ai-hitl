@@ -1,0 +1,14 @@
+# Pipeline configuration (starter)
+weights:
+  wS: 0.45
+  wR: 0.20
+  wI: 0.25
+  wQ: 0.10
+
+llm:
+  alpha: 0.7
+
+thresholds:
+  lengthy_approval:
+    method: "percentile"
+    p: 0.95

@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "llm_explain.v2.schema.json",
+  "title": "ExplainResponse v2",
+  "type": "object",
+  "required": ["schema_version", "summary", "bullets", "evidence_used", "short_summary"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "explain.v2" },
+    "summary": { "type": "string" },
+    "bullets": { "type": "array", "items": { "type": "string" } },
+    "evidence_used": { "type": "array", "items": { "type": "string" } },
+    "short_summary": { "type": "string" },
+    "caveats": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

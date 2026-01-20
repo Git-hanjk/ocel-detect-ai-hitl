@@ -1,0 +1,5 @@
+# Schema alignment mapping (starter)
+# Map raw activity/object/qualifier labels to canonical labels if needed.
+activities: {}
+object_types: {}
+qualifiers: {}
